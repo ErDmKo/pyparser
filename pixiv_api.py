@@ -32,10 +32,11 @@ class Connector(object):
         'Accept-Encoding': 'gzip,deflate,sdch',
         }
 
-    def __init__(self, *ar, **kw):
+    def __init__(self, login, password, *ar, **kw):
+        self.errors = []
         self.cache = Client()
         logging.info('init call')
-        self.cache.get('pixv_session', self.call_session)
+        self.cache.get('pixv_session', lambda rez: self.call_session(rez, login, password))
         self.server = tornado.ioloop.IOLoop.instance()
         self.block()
         self.uploader = Uploader()
@@ -90,7 +91,7 @@ class Connector(object):
             cookies_dict[k] = v.value
         self.headers['Cookie'] = '; '.join(['{}={}'.format(k,v) for k, v in cookies_dict.items()])
 
-    def call_session(self, rez):
+    def call_session(self, rez, login, password):
         logging.info('in session {}'.format(rez))
         if rez:
             self.headers = rez
@@ -109,8 +110,8 @@ class Connector(object):
             })
         response.read()
         info = {
-            'pixiv_id': 'anon',
-            'pass': 'anon',
+            'pixiv_id': login,
+            'pass': password,
             'mode': 'login',
             'skip': '1',
         }
@@ -128,16 +129,19 @@ class Connector(object):
             logging.info('set_cache')
             self.cache.set('pixv_session', self.headers, 1000, self.unblock)
         else:
-            logging.error('login error')
+            self.add_err('login error')
 
-def parser():
-    connection = Connector()
-    connection.get_ranking()
+    def add_err(self, msg):
+        logging.error(msg)
+        self.errors.push(msg)
+        self.unblock()
+        raise Exception(msg)
+
 
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
-    parser()
-
+    connection = Connector(login = "txest", password = "test")
+    connection.get_ranking()
