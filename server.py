@@ -1,3 +1,5 @@
+import json
+
 import tornado.auth
 import tornado.escape
 import tornado.httpserver
@@ -6,6 +8,8 @@ import tornado.web
 
 from tornado import gen
 from tornado.options import define, options, parse_command_line
+
+import forms
 
 define("port", default=8000, help="run on the given port", type=int)
 
@@ -29,18 +33,14 @@ class BaseHandler(tornado.web.RequestHandler):
         if not user_json: return None
         return tornado.escape.json_decode(user_json)
 
-class AuthHandler(BaseHandler, tornado.auth.GoogleMixin):
+class AuthHandler(BaseHandler):
     @gen.coroutine
     def get(self):
-        if self.get_argument("openid.mode", None):
-            user = yield self.get_authenticated_user()
-            self.set_secure_cookie("authdemo_user",
-                                   tornado.escape.json_encode(user))
-            self.redirect("/")
-            return
-        self.authenticate_redirect()
-        
-
+        form = forms.LoginForm(self.request.arguments)
+        if form.validate():
+            self.write(json.dumps(form.data))
+        else:
+            self.write(json.dumps(form.errors))
 
 class LogoutHandler(BaseHandler):
     def get(self):
