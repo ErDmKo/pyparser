@@ -1,0 +1,31 @@
+<div class="row">
+    <div class="col-xs-12 col-sm-8 col-md-6
+    col-sm-offset-2 col-md-offset-3">
+    <form role="form" name="login_form" ng-submit="login()" novalidate>
+    <fieldset>
+        <h2>Insert Pixv login info</h2>
+        <div class="form-error" ng-bind="errorMessage"></div>
+        <div class="form-group" ng-class="{'has-error': login_form.login.$invalid || error.login}">
+            <input type="text" name="login" id="hostname-input"
+                    class="form-control input-lg" placeholder="login"
+                ng-model="user.login" required ng-minlength="2">
+            <p class="help-block error" ng-show="login_form.login.$dirty && login_form.login.$error.required">please enter your login</p>
+            <p class="help-block error" ng-show="login_form.login.$error.email">please enter a valid login</p>
+            <p class="help-block error" ng-show="error.login" ng-bind='error.login'></p>
+        </div>
+        <div class="form-group" ng-class="{'has-error': login_form.password.$invalid || error.password}">
+            <input type="password" required name="password" id="password-input"
+                    class="form-control input-lg" placeholder="Password"
+                    ng-model="user.password">
+            <p class="help-block error" ng-show="login_form.password.$dirty && login_form.password.$error.required">please enter your password</p>
+            <p class="help-block error" ng-show="login_form.password.$error.email">please enter a valid password</p>
+            <p class="help-block error" ng-show="error.password" ng-bind='error.password'></p>
+        </div>
+        <div class="form-group">
+            <button href="" ng-disabled="login_form.$invalid" class="btn btn-lg btn-primary btn-block"
+                >Login</button>
+        </div>
+    </fieldset>
+    </form>
+</div>
+</div>

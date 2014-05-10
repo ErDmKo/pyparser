@@ -11,9 +11,15 @@ angular
     $routeProvider
       .when('/', {
         templateUrl: 'views/main.html',
+        controller: 'MainControler',
+        resolve: {load: 'loginRequired'},
+      })
+      .when('/auth', {
+        templateUrl: 'views/auth.html',
         controller: 'LoginController'
       })
       .otherwise({
-        redirectTo: '/'
+        redirectTo: '/',
+        resolve: {load: 'loginRequired'}
       });
   });
