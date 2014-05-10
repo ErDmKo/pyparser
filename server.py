@@ -34,13 +34,17 @@ class BaseHandler(tornado.web.RequestHandler):
         return tornado.escape.json_decode(user_json)
 
 class AuthHandler(BaseHandler):
+    
     @gen.coroutine
-    def get(self):
-        form = forms.LoginForm(self.request.arguments)
+    def post(self):
+        data = json.loads(self.request.body.decode('utf8'))
+        form = forms.LoginForm(forms.TornadoMultiDict(data))
+        logging.info(data)
         if form.validate():
-            self.write(json.dumps(form.data))
+            self.write(form.data)
         else:
-            self.write(json.dumps(form.errors))
+            self.set_status(401)
+            self.write(form.errors)
 
 class LogoutHandler(BaseHandler):
     def get(self):

@@ -1,7 +1,21 @@
-from wtforms import validators
-from wtforms import fields
-from wtforms_tornado import Form
+from wtforms import validators, fields, Form
+
+class TornadoMultiDict(dict):
+    def __init__(self, response_dict):
+        self.response_dict = response_dict
+
+    def __iter__(self):
+        return iter(self.response_dict)
+
+    def __len__(self):
+        return len(self.response_dict)
+
+    def __contains__(self, name):
+        return (name in self.response_dict)
+
+    def getlist(self, name):
+        return [self.response_dict[name]]
 
 class LoginForm(Form):
-    login = fields.StringField(validators=[validators.Required()])
-    password = fields.StringField(validators=[validators.Required()])
+    login = fields.StringField('login', validators=[validators.length(min=2), validators.Required()])
+    password = fields.StringField('password', validators=[validators.length(min=2), validators.Required()])
