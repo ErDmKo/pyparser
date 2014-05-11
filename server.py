@@ -1,15 +1,18 @@
 import json, logging
+import functools
 
 import tornado.auth
 import tornado.escape
 import tornado.httpserver
 import tornado.ioloop
 import tornado.web
+import threading
 
 from tornado import gen, autoreload
 from tornado.options import define, options, parse_command_line
 
 import forms
+import pixiv_api
 
 define("port", default=8000, help="run on the given port", type=int)
 
@@ -45,13 +48,22 @@ class AuthHandler(BaseHandler):
     def post(self):
         data = json.loads(self.request.body.decode('utf8'))
         form = forms.LoginForm(forms.TornadoMultiDict(data))
-        logging.info(data)
         if form.validate():
-            self.set_secure_cookie("auth_id", tornado.escape.json_encode({'login': form.data['login']}))
-            self.write(form.data)
+            logging.info(data)
+            conn = pixiv_api.Connector()
+            get_cahe = yield conn.get_login_fut(**form.data)
+            login_err = yield get_cahe
+            if login_err:
+                logging.info(login_err)
+                self.set_status(401)
+                self.write(login_err)
+            else:
+                self.set_secure_cookie("auth_id", tornado.escape.json_encode({'login': form.data['login']}))
+                self.write(form.data)
         else:
             self.set_status(401)
             self.write(form.errors)
+        logging.info('return')
 
 class LogoutHandler(BaseHandler):
     def get(self):

@@ -1,7 +1,7 @@
 'use strict';
 
 angular.module('pyparserApp')
-  .factory('AuthService', function ($rootScope, $http, Session) {
+  .factory('AuthService', function ($http, Session) {
     return {
       login: function (form) {
         return $http

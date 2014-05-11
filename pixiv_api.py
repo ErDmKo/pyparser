@@ -8,6 +8,7 @@ from http import client, cookies
 import logging
 import tornado.ioloop
 import tornado.httpclient
+from tornado import gen
 import os
 
 class Uploader(object):
@@ -32,21 +33,25 @@ class Connector(object):
         'Accept-Encoding': 'gzip,deflate,sdch',
         }
 
-    def __init__(self, login, password, *ar, **kw):
-        self.errors = []
+    def __init__(self,  *ar, **kw):
+        self.errors = {}
         self.cache = Client()
         logging.info('init call')
-        self.cache.get('pixv_session', lambda rez: self.call_session(rez, login, password))
         self.server = tornado.ioloop.IOLoop.instance()
-        self.block()
         self.uploader = Uploader()
         self.d = zlib.decompressobj(16+zlib.MAX_WBITS)
 
+    def get_login_fut(self, login, password):
+        return self.cache.get(
+            'pixv_session', lambda rez: self.call_session(
+                rez, login, password))
+
+
     def block(self, *ar, **kw):
-        self.server.start()
+        logging.info('block call')
 
     def unblock(self, *ar, **kw):
-        self.server.stop()
+        logging.info('unblock call')
 
     def get_ranking(self):
         url = 'www.pixiv.net'
@@ -75,8 +80,6 @@ class Connector(object):
             async_client.fetch(request, image_upload)
             logging.info(url)
 
-        self.block()
-
     def set_cookie(self, response):
         C = cookies.SimpleCookie()
         cookies_dict = {}
@@ -96,7 +99,7 @@ class Connector(object):
         if rez:
             self.headers = rez
             self.unblock()
-            return
+            return rez
         url = 'www.secure.pixiv.net'
         conn = client.HTTPSConnection(url, timeout=60)
         conn.request('GET', '/login.php', headers = self.headers)
@@ -128,15 +131,14 @@ class Connector(object):
         if response.status == 302:
             logging.info('set_cache')
             self.cache.set('pixv_session', self.headers, 1000, self.unblock)
+            return False
         else:
-            self.add_err('login error')
+            return {'login': 'pixiv login error'}
 
     def add_err(self, msg):
         logging.error(msg)
-        self.errors.push(msg)
         self.unblock()
-        raise Exception(msg)
-
+        self.errors.update(msg)
 
 if __name__ == "__main__":
     logging.basicConfig(
@@ -144,4 +146,4 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     connection = Connector(login = "txest", password = "test")
-    connection.get_ranking()
+    #connection.get_ranking()

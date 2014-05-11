@@ -7,6 +7,7 @@ import collections
 import logging
 import pickle
 import types
+from tornado.concurrent import Future
 
 
 class Client(object):
@@ -33,29 +34,39 @@ class Client(object):
 
     def get(self, key, callback):
         server = self._server(key)
-        server.send_cmd("get {}".format(key).encode(),
-            functools.partial(self._get_callback_write, server=server, callback=callback))
+        in_callback = functools.partial(self._get_callback_write, server=server, callback=callback)
+        fut = Future()
+        def con_close(*ar, **kw):
+            fut.set_result(in_callback(*ar, **kw))
+        logging.info('in get')
+        server.send_cmd("get {}".format(key).encode(), con_close) 
+        return fut
 
     def _get_callback_write(self, server, callback):
-        server.stream.read_until(b"\r\n",
-            functools.partial(self._get_callback_read, server=server, callback=callback))
+        in_callback = functools.partial(self._get_callback_read, server=server, callback=callback)
+        logging.info('in get callback')
+        fut = Future()
+        def con_close(*ar, **kw):
+            fut.set_result(in_callback(*ar, **kw))
+        server.stream.read_until(b"\r\n", con_close)
+        return fut
 
     def _get_callback_read(self, result, server, callback):
-        self._debug("_get_callback_read `%s`" % (result,))
+        logging.info("_get_callback_read `%s`" % (result,))
         if result[:3] == b"END":
             self.conn_pool.release(server.conn)
             return callback(None)
         elif result[:5] == b"VALUE":
             flag, length = result.split(b" ")[2:]
-            server.stream.read_until(
-                b"END",
-                functools.partial(
-                    self._get_callback_value,
-                    server=server,
-                    callback=callback,
-                    flag=int(flag)
-                )
+            in_callback = functools.partial(
+                self._get_callback_value,
+                server=server,
+                callback=callback,
+                flag=int(flag)
             )
+            server.stream.read_until(
+                b"END", in_callback)
+            return in_callback
         else:
             logging.error("Bad response from memcache %s" % (result,))
             self.conn_pool.release(server.conn)
@@ -98,13 +109,14 @@ class Client(object):
             'timeout': timeout,
             'length': len(value),
             }
-        server.send_cmd("set {key} {flags} {timeout}\
-                {length:d}\r\n".format(**str_info).encode()+value,
-            functools.partial(self._set_callback_write, server=server, callback=callback))
+        in_callback = functools.partial(self._set_callback_write, server=server, callback=callback)
+        return server.send_cmd("set {key} {flags} {timeout}\
+                {length:d}\r\n".format(**str_info).encode()+value, in_callback)
 
     def _set_callback_write(self, server, callback):
-        server.stream.read_until(b"\r\n",
-            functools.partial(self._set_callback_read, server=server, callback=callback))
+        in_callback = functools.partial(self._set_callback_read, server=server, callback=callback)
+        server.stream.read_until(b"\r\n", in_callback)
+        return in_callback
 
     def _set_callback_read(self, result, server, callback):
         logging.info('read {}'.format(result))
@@ -120,18 +132,16 @@ class Client(object):
         if timeout:
             cmd += " %d" % (timeout,)
 
-        server.send_cmd(
-            cmd.encode(),
-            functools.partial(
+        in_callback = functools.partial(
                 self._delete_callback_write,
                 callback=callback,
-                server=server
-            )
-        )
+                server=server)
+        return server.send_cmd(cmd.encode(), in_callback)
 
     def _delete_callback_write(self, server, callback):
-        server.stream.read_until(b"\r\n",
-            functools.partial(self._set_callback_read, server=server, callback=callback))
+        in_callback = functools.partial(self._set_callback_read, server=server, callback=callback)
+        server.stream.read_until(b"\r\n", in_callback)
+        return in_callback
 
     def delete_multi(self, keys, callback):
         pass
@@ -196,7 +206,13 @@ class Host(object):
     def send_cmd(self, cmd, callback):
         self._ensure_connection()
         cmd = cmd + "\r\n".encode()
-        self.stream.write(cmd, callback)
+        fut = Future()
+        def close_con(*ar, **kw):
+            logging.info('in cmd')
+            fut.set_result(callback(*ar, **kw))
+        self.stream.write(cmd, close_con)
+        logging.info('in cmd')
+        return fut
 
 if __name__ == "__main__":
 
