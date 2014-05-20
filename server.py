@@ -1,5 +1,7 @@
 import json, logging
 import functools
+from asyncmc import Client
+from session import MemcacheStore, Session
 
 import tornado.auth
 import tornado.escape
@@ -22,27 +24,34 @@ class Application(tornado.web.Application):
         handlers = [
             (r"/server/auth/login", AuthHandler),
             (r"/server/auth/logout", LogoutHandler),
+            (r"/server/", MainPage),
         ]
         settings = dict(
             cookie_secret="__TODO:_GENERATE_YOUR_OWN_RANDOM_VALUE_HERE__",
             login_url="/",
         )
+        self.session_store = MemcacheStore(Client())
         tornado.web.Application.__init__(self, handlers, **settings)
 
 
 class BaseHandler(tornado.web.RequestHandler):
     def get_current_user(self):
-        user_json = self.get_secure_cookie("auth_id")
-        if not user_json: return None
-        return tornado.escape.json_decode(user_json)
+        return self.session['user'] if self.session and 'user' in self.session else None
 
-class AuthHandler(BaseHandler):
+    @property
+    def session(self):
+        sessionid = self.get_secure_cookie('auth_id')
+        return Session(self.application.session_store, sessionid)
+
+class MainPage(BaseHandler):
 
     @tornado.web.authenticated
     def get(self):
         name = tornado.escape.xhtml_escape(self.current_user['login'])
-        self.write("Hello, " + name)
-        self.write("<br><br><a href=\"/server/auth/logout\">Log out</a>")
+        info = ['hello', name]
+        self.write(info)
+
+class AuthHandler(BaseHandler):
 
     @gen.coroutine
     def post(self):
@@ -51,14 +60,14 @@ class AuthHandler(BaseHandler):
         if form.validate():
             logging.info(data)
             conn = pixiv_api.Connector()
-            get_cahe = yield conn.get_login_fut(**form.data)
-            login_err = yield get_cahe
+            login_err = yield conn.get_login_fut(**form.data)
             if login_err:
                 logging.info(login_err)
                 self.set_status(401)
                 self.write(login_err)
             else:
-                self.set_secure_cookie("auth_id", tornado.escape.json_encode({'login': form.data['login']}))
+                self.session['con_obj'] = conn
+                self.set_secure_cookie("auth_id", form.data['login'])
                 self.write(form.data)
         else:
             self.set_status(401)

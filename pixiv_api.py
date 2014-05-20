@@ -1,5 +1,7 @@
 #!/usr/bin/python
 import zlib
+import functools
+
 from urllib import parse
 from asyncmc import Client
 from http import cookiejar
@@ -10,6 +12,7 @@ import tornado.ioloop
 import tornado.httpclient
 from tornado import gen
 import os
+from tornado.concurrent import Future
 
 class Uploader(object):
     upload_to = 'upload_img'
@@ -42,10 +45,60 @@ class Connector(object):
         self.d = zlib.decompressobj(16+zlib.MAX_WBITS)
 
     def get_login_fut(self, login, password):
-        return self.cache.get(
-            'pixv_session', lambda rez: self.call_session(
-                rez, login, password))
+        fut = Future()
+        get_fut = self.cache.get('pixv_session')
+        def wraper(fut_rez):
+            info = fut_rez.result()
+            logging.info('form cache {}'.format(info))
+            info = self.call_session(info, login, password)
+            fut.set_result(info)
+        get_fut.add_done_callback(wraper)
+        return fut
+        
+    def call_session(self, rez, login='', password=''):
+        logging.info('in session {}'.format(rez))
+        if rez:
+            self.headers = rez
+            self.unblock()
+            return rez
+        url = 'www.secure.pixiv.net'
+        conn = client.HTTPSConnection(url, timeout=60)
+        conn.request('GET', '/login.php', headers = self.headers)
+        response = conn.getresponse()
+        self.set_cookie(response)
+        self.headers.update({
+            'Origin': 'https://www.secure.pixiv.net',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Referer': 'https://www.secure.pixiv.net/login.php',
+            'Cache-Control': 'max-age=0'
+            })
+        response.read()
+        info = {
+            'pixiv_id': login,
+            'pass': password,
+            'mode': 'login',
+            'skip': '1',
+        }
+        data = parse.urlencode(info).encode('utf-8')
+        conn.request('POST', '/login.php', body=data, headers=self.headers)
+        response = conn.getresponse()
+        self.set_cookie(response)
+        for k in ['Origin', 'Content-Type', 'Referer']:
+            self.headers.pop(k) 
+        self.headers.update({
+            'Host': 'www.pixiv.net',
+            })
+        conn.close()
+        logging.info('status {}'.format(response.status))
+        if response.status == 302:
+            logging.info('set_cache')
+            self.cache.set('pixv_session', self.headers, 1000, self.unblock)
+            return False
+        else:
+            return {'login': 'pixiv login error'}
 
+    def save(self, name):
+        self.cache.set('user_{}'.format(name), self, 5000)
 
     def block(self, *ar, **kw):
         logging.info('block call')
@@ -93,47 +146,6 @@ class Connector(object):
         for k, v in  C.items():
             cookies_dict[k] = v.value
         self.headers['Cookie'] = '; '.join(['{}={}'.format(k,v) for k, v in cookies_dict.items()])
-
-    def call_session(self, rez, login, password):
-        logging.info('in session {}'.format(rez))
-        if rez:
-            self.headers = rez
-            self.unblock()
-            return rez
-        url = 'www.secure.pixiv.net'
-        conn = client.HTTPSConnection(url, timeout=60)
-        conn.request('GET', '/login.php', headers = self.headers)
-        response = conn.getresponse()
-        self.set_cookie(response)
-        self.headers.update({
-            'Origin': 'https://www.secure.pixiv.net',
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Referer': 'https://www.secure.pixiv.net/login.php',
-            'Cache-Control': 'max-age=0'
-            })
-        response.read()
-        info = {
-            'pixiv_id': login,
-            'pass': password,
-            'mode': 'login',
-            'skip': '1',
-        }
-        data = parse.urlencode(info).encode('utf-8')
-        conn.request('POST', '/login.php', body=data, headers=self.headers)
-        response = conn.getresponse()
-        self.set_cookie(response)
-        for k in ['Origin', 'Content-Type', 'Referer']:
-            self.headers.pop(k) 
-        self.headers.update({
-            'Host': 'www.pixiv.net',
-            })
-        conn.close()
-        if response.status == 302:
-            logging.info('set_cache')
-            self.cache.set('pixv_session', self.headers, 1000, self.unblock)
-            return False
-        else:
-            return {'login': 'pixiv login error'}
 
     def add_err(self, msg):
         logging.error(msg)

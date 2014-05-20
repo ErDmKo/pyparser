@@ -32,15 +32,15 @@ class Client(object):
         self._debug('server call for key "{}"'.format(key))
         return self.conn_pool.reserve().get_server_for_key(key)
 
-    def get(self, key, callback):
+    def get(self, key, callback = lambda rez: rez):
         server = self._server(key)
         in_callback = functools.partial(self._get_callback_write, server=server, callback=callback)
         fut = Future()
         def con_close(*ar, **kw):
             fut.set_result(in_callback(*ar, **kw))
+            logging.info('exit_get')
         logging.info('in get')
-        server.send_cmd("get {}".format(key).encode(), con_close) 
-        return fut
+        return server.send_cmd("get {}".format(key).encode(), con_close)
 
     def _get_callback_write(self, server, callback):
         in_callback = functools.partial(self._get_callback_read, server=server, callback=callback)
@@ -48,6 +48,7 @@ class Client(object):
         fut = Future()
         def con_close(*ar, **kw):
             fut.set_result(in_callback(*ar, **kw))
+            logging.info('get result call')
         server.stream.read_until(b"\r\n", con_close)
         return fut
 
@@ -208,10 +209,11 @@ class Host(object):
         cmd = cmd + "\r\n".encode()
         fut = Future()
         def close_con(*ar, **kw):
-            logging.info('in cmd')
+            logging.debug('in cmd before call')
             fut.set_result(callback(*ar, **kw))
+            logging.info('in cmd end {}'.format(cmd))
         self.stream.write(cmd, close_con)
-        logging.info('in cmd')
+        logging.info('in cmd {} start {}'.format(cmd,callback))
         return fut
 
 if __name__ == "__main__":
