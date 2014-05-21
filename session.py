@@ -1,6 +1,7 @@
 from uuid import uuid4
 import time, logging
 from tornado.concurrent import Future
+from tornado import gen
 
 class MemcacheStore(object):
     def __init__(self, conn, **options):
@@ -22,7 +23,8 @@ class MemcacheStore(object):
 
     def get_session(self, sid, name):
         logging.info(self.named(sid, name))
-        return self.client.get(self.named(sid, name))
+        fut = self.client.get(self.named(sid, name))
+        return fut
 
     def set_session(self, sid, session_data, name):
         expiry = self.options['expire']
@@ -31,32 +33,40 @@ class MemcacheStore(object):
     def delete_session(self, sid):
         self.client.delete(self.prefixed(sid))
 
-class Session:
- 
+class Session(object):
+     
     def __init__(self, session_store, sessionid=None):
         self._store = session_store
+        self.conn = False
         logging.info(sessionid)
         self._sessionid = sessionid if sessionid else self._store.generate_sid()
-        self.__sessiondata = self._store.get_session(self._sessionid, 'data')
+        self._sessiondata = {}
         self.dirty = False
 
-    @property
-    def _sessiondata(self):
-        logging.info(self.__sessiondata)
-        info = self.__sessiondata.result()
+    @gen.coroutine
+    def get_sessiondata(self):
+        info = yield self._store.get_session(self._sessionid, 'data')
         logging.info(info)
+        if info:
+            self._sessiondata = info
+            self.conn = True
+        else:
+            info = {}
         return info
- 
+
     def clear(self):
         self._store.delete_session(self._sessionid)
  
-    def access(self, remote_ip):
+    def access(self, remote_ip, callback):
+        logging.info('access')
         access_info = {'remote_ip':remote_ip, 'time':'%.6f' % time.time()}
-        self._store.set_session(
+        fut = self._store.set_session(
                 self._sessionid,
                 'last_access',
                 access_info
                 )
+        logging.info(fut)
+        return fut
  
     def last_access(self):
         access_info = self._store.get_session(self._sessionid, 'last_access').result()

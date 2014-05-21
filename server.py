@@ -35,13 +35,22 @@ class Application(tornado.web.Application):
 
 
 class BaseHandler(tornado.web.RequestHandler):
+
+    @gen.coroutine
     def get_current_user(self):
+        self.set_session()
+        info = yield self.session.get_sessiondata()
+        logging.info('\n\n\!!!{}!!!\n\n'.format(info))
+        sinfo = yield gen.Task(self.session.access, self.session, self.request.remote_ip)
+        logging.info('\n\n\!!!{}!!!\n\n'.format(sinfo))
+        logging.info('\n\n\!!!{}!!!\n\n'.format(self.session._sessionid))
+        self.set_secure_cookie("auth_id", form.data['login'])
         return self.session['user'] if self.session and 'user' in self.session else None
 
-    @property
-    def session(self):
+    def set_session(self):
         sessionid = self.get_secure_cookie('auth_id')
-        return Session(self.application.session_store, sessionid)
+        self.session =Session(self.application.session_store, sessionid)
+        return self.session
 
 class MainPage(BaseHandler):
 
@@ -54,7 +63,8 @@ class MainPage(BaseHandler):
 class AuthHandler(BaseHandler):
 
     @gen.coroutine
-    def post(self):
+    def post(self): 
+        logging.info(self.current_user)
         data = json.loads(self.request.body.decode('utf8'))
         form = forms.LoginForm(forms.TornadoMultiDict(data))
         if form.validate():

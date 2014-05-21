@@ -19,7 +19,7 @@ class Client(object):
     def __init__(self, servers = ["127.0.0.1:11211"], debug=0, **kwargs):
         self.debug = debug
         self.io_loop = tornado.ioloop.IOLoop.instance()
-        self.conn_pool = ConnectionPool(servers, **kwargs)
+        self.conn_pool = ConnectionPool(servers, debug=debug, **kwargs)
 
     def _debug(self, msg):
         if self.debug:
@@ -35,22 +35,22 @@ class Client(object):
     def get(self, key, callback = lambda rez: rez):
         server = self._server(key)
         in_callback = functools.partial(self._get_callback_write, server=server, callback=callback)
-        logging.info('in get')
+        self._info('in get')
         return server.send_cmd("get {}".format(key).encode(), in_callback)
 
     def _get_callback_write(self, server, callback):
         in_callback = functools.partial(self._get_callback_read, server=server, callback=callback)
-        logging.info('in get callback')
+        self._info('in get callback')
         fut = Future()
         def con_close(*ar, **kw):
             new_fut = in_callback(*ar, **kw)
             tornado.concurrent.chain_future(new_fut, fut)
-            logging.info('get result call')
+            self._info('get result call')
         server.stream.read_until(b"\r\n", con_close)
         return fut
 
     def _get_callback_read(self, result, server, callback):
-        logging.info("_get_callback_read `%s`" % (result,))
+        self._info("_get_callback_read `%s`" % (result,))
         if result[:3] == b"END":
             self.conn_pool.release(server.conn)
             fut = Future()
@@ -66,7 +66,7 @@ class Client(object):
             )
             fut = Future()
             def con_close(*ar, **kw):
-                logging.info('get result call {}'.format(result))
+                self._info('get result call {}'.format(result))
                 info = in_callback(*ar, **kw)
                 fut.set_result(info)
                 return info
@@ -126,12 +126,12 @@ class Client(object):
         def close_con(*ar, **kw):
             new_fut = in_callback(*ar, **kw)
             tornado.concurrent.chain_future(new_fut, fut)
-            logging.info('set result call')
+            self._info('set result call')
         server.stream.read_until(b"\r\n", close_con)
         return fut
 
     def _set_callback_read(self, result, server, callback):
-        logging.info('read {}'.format(result))
+        self._info('read {}'.format(result))
         self.conn_pool.release(server.conn)
         fut = Future()
         fut.set_result(callback(result))
@@ -158,7 +158,7 @@ class Client(object):
         def close_con(*ar, **kw):
             new_fut = in_callback(*ar, **kw)
             tornado.concurrent.chain_future(new_fut, fut)
-            logging.info('set result call')
+            self._info('set result call')
         server.stream.read_until(b"\r\n", close_con)
         return fut
 
@@ -168,8 +168,8 @@ class Client(object):
 
 class ConnectionPool(object):
 
-    def __init__(self, servers, max_connections=15):
-        self.pool = [Connection(servers) for i in range(max_connections)]
+    def __init__(self, servers, max_connections=15, debug=0):
+        self.pool = [Connection(servers, debug) for i in range(max_connections)]
 
         self.in_use = collections.deque()
         self.idle = collections.deque(self.pool)
@@ -186,10 +186,10 @@ class ConnectionPool(object):
 
 class Connection(object):
 
-    def __init__(self, servers):
+    def __init__(self, servers, debug=0):
         assert isinstance(servers, list)
 
-        self.hosts = [Host(s, self) for s in servers]
+        self.hosts = [Host(s, self, debug) for s in servers]
 
     def get_server_for_key(self, key):
         return self.hosts[hash(key) % len(self.hosts)]
@@ -197,7 +197,12 @@ class Connection(object):
 
 class Host(object):
 
-    def __init__(self, host, conn):
+    def _info(self, msg):
+        if self.debug:
+            logging.info(msg)
+
+    def __init__(self, host, conn, debug=0):
+        self.debug = debug
         self.conn = conn
         self.host = host
         self.port = 11211
@@ -229,7 +234,7 @@ class Host(object):
         def close_con(*ar, **kw):
             logging.debug('in cmd before call {} {}'.format(cmd , callback))
             new_fut = callback(*ar, **kw)
-            logging.info('con future {}'.format(new_fut))
+            self._info('con future {}'.format(new_fut))
             tornado.concurrent.chain_future(new_fut, fut)
         self.stream.write(cmd, close_con)
         logging.debug('in cmd to que {} {}'.format(cmd , callback))
