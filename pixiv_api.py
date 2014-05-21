@@ -27,16 +27,16 @@ class Uploader(object):
         return file_name
 
 class Connector(object):
-    headers = {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Connection': 'keep-alive',
-        'Host': 'www.secure.pixiv.net',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.131 Safari/537.36',
-        'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4,es;q=0.2,sq;q=0.2',
-        'Accept-Encoding': 'gzip,deflate,sdch',
-        }
 
     def __init__(self,  *ar, **kw):
+        self.headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Connection': 'keep-alive',
+            'Host': 'www.secure.pixiv.net',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.131 Safari/537.36',
+            'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4,es;q=0.2,sq;q=0.2',
+            'Accept-Encoding': 'gzip,deflate,sdch',
+            }
         self.errors = {}
         self.cache = Client()
         logging.info('init call')
