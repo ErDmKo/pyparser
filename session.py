@@ -48,7 +48,7 @@ class Session(object):
         return info
 
     def insert_info(self, info, handler):
-        logging.info(bool(info))
+        logging.info(info)
         if info:
             self.conn = True
         else:
@@ -113,7 +113,8 @@ class Session(object):
  
     def _dirty(self):
         self.dirty = True
+        self._save()
  
     def _save(self):
-        self._store.set_session(self._sessionid, self._sessiondata, 'data')
+        self._store.set_session(self._sessionid, self._sessiondata)
         self.dirty = False

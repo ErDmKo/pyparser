@@ -61,6 +61,16 @@ class MainPage(BaseHandler):
 class AuthHandler(BaseHandler):
 
     @gen.coroutine
+    def get(self):
+        user = yield self.current_user
+        logging.info(self.session)
+        if 'con_obj' in self.session:
+            out = {'status': 'ok'}
+        else:
+            out = {'status': 'unauth'}
+        self.write(out)
+
+    @gen.coroutine
     def post(self): 
         user = yield self.current_user
         logging.info(user)
@@ -70,12 +80,13 @@ class AuthHandler(BaseHandler):
             logging.info(data)
             conn = pixiv_api.Connector()
             login_err = yield conn.get_login_fut(**form.data)
+            logging.info(login_err)
             if login_err:
                 logging.info(login_err)
                 self.set_status(401)
                 self.write(login_err)
             else:
-                self.session['con_obj'] = conn
+                self.session['con_obj'] = conn.id
                 self.set_secure_cookie("auth_id", form.data['login'])
                 self.write(form.data)
         else:

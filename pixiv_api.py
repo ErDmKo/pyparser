@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import zlib
 import functools
+from uuid import uuid4
 
 from urllib import parse
 from asyncmc import Client
@@ -39,6 +40,7 @@ class Connector(object):
             }
         self.errors = {}
         self.cache = Client()
+        self.id = kw.get('id', uuid4().hex)
         logging.info('init call')
         self.server = tornado.ioloop.IOLoop.instance()
         self.uploader = Uploader()
@@ -46,7 +48,7 @@ class Connector(object):
 
     def get_login_fut(self, login, password):
         fut = Future()
-        get_fut = self.cache.get('pixv_session')
+        get_fut = self.cache.get(self.id)
         def wraper(fut_rez):
             info = fut_rez.result()
             logging.info('form cache {}'.format(info))
@@ -60,7 +62,7 @@ class Connector(object):
         if rez:
             self.headers = rez
             self.unblock()
-            return rez
+            return False
         url = 'www.secure.pixiv.net'
         conn = client.HTTPSConnection(url, timeout=60)
         conn.request('GET', '/login.php', headers = self.headers)
@@ -92,7 +94,7 @@ class Connector(object):
         logging.info('status {}'.format(response.status))
         if response.status == 302:
             logging.info('set_cache')
-            self.cache.set('pixv_session', self.headers, 1000, self.unblock)
+            self.cache.set(self.id, self.headers, 1000, self.unblock)
             return False
         else:
             return {'login': 'pixiv login error'}

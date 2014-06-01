@@ -74,9 +74,9 @@ class Client(object):
                 b"END", con_close)
             return fut
         else:
-            logging.error("Bad response from memcache %s" % (result,))
+            logging.error("Bad response from memcache >%s<" % (result,))
             self.conn_pool.release(server.conn)
-            raise Exeption('Bad resp memcached')
+            raise Exception('Bad resp memcached')
 
     def _get_callback_value(self, result, flag, server, callback):
         result = result.replace(b"\r\nEND", b"")
