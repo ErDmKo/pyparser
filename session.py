@@ -13,22 +13,21 @@ class MemcacheStore(object):
         self.client = conn
 
     def prefixed(self, sid):
-        return '%s_%s' % (self.options['key_prefix'], sid)
+        return self.options['key_prefix'].encode()+sid
 
-    def named(self, sid, name):
-        return '{}_{}'.format(self.prefixed(sid), name)
+    def named(self, sid):
+        return self.prefixed(sid)
 
     def generate_sid(self):
-        return uuid4()
+        return uuid4().hex
 
-    def get_session(self, sid, name):
-        logging.info(self.named(sid, name))
-        fut = self.client.get(self.named(sid, name))
+    def get_session(self, sid):
+        fut = self.client.get(self.named(sid))
         return fut
 
-    def set_session(self, sid, session_data, name):
+    def set_session(self, sid, session_data):
         expiry = self.options['expire']
-        return self.client.set(self.named(sid,name), session_data, expiry)
+        return self.client.set(self.named(sid), session_data, expiry)
 
     def delete_session(self, sid):
         self.client.delete(self.prefixed(sid))
@@ -43,28 +42,36 @@ class Session(object):
         self._sessiondata = {}
         self.dirty = False
 
-    @gen.coroutine
     def get_sessiondata(self):
-        info = yield self._store.get_session(self._sessionid, 'data')
+        info = self._store.get_session(self._sessionid)
         logging.info(info)
+        return info
+
+    def insert_info(self, info, handler):
+        logging.info(bool(info))
         if info:
-            self._sessiondata = info
             self.conn = True
         else:
             info = {}
+        self._sessiondata = info
+        self.access(handler)
         return info
 
     def clear(self):
         self._store.delete_session(self._sessionid)
  
-    def access(self, remote_ip, callback):
+    def access(self, handler):
         logging.info('access')
-        access_info = {'remote_ip':remote_ip, 'time':'%.6f' % time.time()}
+        access_info = {
+                'user': self._sessionid,
+                'remote_ip': handler.request.remote_ip,
+                'time':'%.6f' % time.time()
+                }
         fut = self._store.set_session(
                 self._sessionid,
-                'last_access',
                 access_info
                 )
+        self._sessiondata.update(access_info)
         logging.info(fut)
         return fut
  
