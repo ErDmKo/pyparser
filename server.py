@@ -62,6 +62,7 @@ class AuthHandler(BaseHandler):
 
     @gen.coroutine
     def get(self):
+        logging.info(self.get_secure_cookie("auth_id"))
         user = yield self.current_user
         logging.info(self.session)
         if 'con_obj' in self.session:
@@ -87,7 +88,6 @@ class AuthHandler(BaseHandler):
                 self.write(login_err)
             else:
                 self.session['con_obj'] = conn.id
-                self.set_secure_cookie("auth_id", form.data['login'])
                 self.write(form.data)
         else:
             self.set_status(401)

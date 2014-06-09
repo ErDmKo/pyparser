@@ -36,6 +36,7 @@ class Client(object):
         server = self._server(key)
         in_callback = functools.partial(self._get_callback_write, server=server, callback=callback)
         self._info('in get')
+        logging.info('get')
         return server.send_cmd("get {}".format(key).encode(), in_callback)
 
     def _get_callback_write(self, server, callback):
@@ -74,7 +75,7 @@ class Client(object):
                 b"END", con_close)
             return fut
         else:
-            logging.error("Bad response from memcache >%s<" % (result,))
+            logging.error("Bad response from  memcache >%s<" % (result,))
             self.conn_pool.release(server.conn)
             raise Exception('Bad resp memcached')
 

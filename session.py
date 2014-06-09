@@ -19,7 +19,7 @@ class MemcacheStore(object):
         return self.prefixed(sid)
 
     def generate_sid(self):
-        return uuid4().hex
+        return uuid4().hex.encode()
 
     def get_session(self, sid):
         fut = self.client.get(self.named(sid))

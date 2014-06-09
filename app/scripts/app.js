@@ -12,7 +12,7 @@ angular
       .when('/', {
         templateUrl: 'views/main.html',
         controller: 'MainControler',
-        resolve: {load: 'loginRequired'},
+        resolve: {load: ['loginRequired', function(lgR){return lgR.test()}]},
       })
       .when('/auth', {
         templateUrl: 'views/auth.html',
