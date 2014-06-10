@@ -1,6 +1,8 @@
 'use strict';
 
 angular.module('pyparserApp')
-    .controller('MainControler', function ($scope) {
-    console.log('main');
+    .controller('MainControler', function (ranking, $scope) {
+    ranking.get().$promise.then(function(images_list){
+        console.log(images_list);
+        });
     });

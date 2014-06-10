@@ -7,7 +7,7 @@ class MemcacheStore(object):
     def __init__(self, conn, **options):
         self.options = {
             'key_prefix': 'session',
-            'expire': 7200
+            'expire': 1000
             }
         self.options.update(options)
         self.client = conn
@@ -25,9 +25,10 @@ class MemcacheStore(object):
         fut = self.client.get(self.named(sid))
         return fut
 
+    @gen.coroutine
     def set_session(self, sid, session_data):
         expiry = self.options['expire']
-        return self.client.set(self.named(sid), session_data, expiry)
+        yield self.client.set(self.named(sid), session_data, expiry)
 
     def delete_session(self, sid):
         self.client.delete(self.prefixed(sid))

@@ -20,6 +20,6 @@ angular
       })
       .otherwise({
         redirectTo: '/',
-        resolve: {load: 'loginRequired'}
+        resolve: {load: ['loginRequired', function(lgR){return lgR.test()}]},
       });
   });

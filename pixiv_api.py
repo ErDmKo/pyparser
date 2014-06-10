@@ -46,7 +46,7 @@ class Connector(object):
         self.uploader = Uploader()
         self.d = zlib.decompressobj(16+zlib.MAX_WBITS)
 
-    def get_login_fut(self, login, password):
+    def get_login_fut(self, login='', password=''):
         fut = Future()
         get_fut = self.cache.get(self.id)
         def wraper(fut_rez):
@@ -99,18 +99,16 @@ class Connector(object):
         else:
             return {'login': 'pixiv login error'}
 
-    def save(self, name):
-        self.cache.set('user_{}'.format(name), self, 5000)
-
     def block(self, *ar, **kw):
         logging.info('block call')
 
     def unblock(self, *ar, **kw):
-        logging.info('unblock call')
+        logging.info('unblock call {}'.format(ar))
 
     def get_ranking(self):
         url = 'www.pixiv.net'
         self.conn = client.HTTPConnection(url, timeout=60)
+        logging.info(self.headers)
         self.conn.request('GET', '/ranking.php?mode=daily', headers = self.headers)
         resp = self.conn.getresponse()
         self.set_cookie(resp)

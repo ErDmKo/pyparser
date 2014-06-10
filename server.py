@@ -52,10 +52,18 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class MainPage(BaseHandler):
 
+    @gen.coroutine
     @tornado.web.authenticated
     def get(self):
-        name = tornado.escape.xhtml_escape(self.current_user['login'])
-        info = ['hello', name]
+        user = yield self.current_user
+        info = {
+            'info_list': [],
+            }
+        if 'con_obj' in self.session:
+            conn = pixiv_api.Connector(id=self.session['con_obj'])
+            login_err = yield conn.get_login_fut()
+            if not login_err:
+                info['info_list'] = yield conn.get_ranking()
         self.write(info)
 
 class AuthHandler(BaseHandler):
@@ -64,7 +72,6 @@ class AuthHandler(BaseHandler):
     def get(self):
         logging.info(self.get_secure_cookie("auth_id"))
         user = yield self.current_user
-        logging.info(self.session)
         if 'con_obj' in self.session:
             out = {'status': 'ok'}
         else:
