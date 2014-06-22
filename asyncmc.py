@@ -53,6 +53,7 @@ class Client(object):
     def _get_callback_read(self, result, server, callback):
         self._info("_get_callback_read `%s`" % (result,))
         if result[:3] == b"END":
+            logging.info('read_callback_release')
             self.conn_pool.release(server.conn)
             fut = Future()
             fut.set_result(callback(None))
@@ -76,11 +77,13 @@ class Client(object):
             return fut
         else:
             logging.error("Bad response from  memcache >%s<" % (result,))
+            logging.info('bad_callback_release')
             self.conn_pool.release(server.conn)
             raise Exception('Bad resp memcached')
 
     def _get_callback_value(self, result, flag, server, callback):
         result = result.replace(b"\r\nEND", b"")
+        logging.info('value_callback_release')
         self.conn_pool.release(server.conn)
 
         if flag == 0:
@@ -98,6 +101,7 @@ class Client(object):
         pass
 
     def set(self, key, value, timeout=0, callback = lambda rez: rez):
+        logging.info('set')
         assert isinstance(timeout, int)
         self._info('insert key {}'.format(key))
 
@@ -134,6 +138,7 @@ class Client(object):
     def _set_callback_read(self, result, server, callback):
         self._info('read {}'.format(result))
         self.conn_pool.release(server.conn)
+        logging.info('set_callback_release')
         fut = Future()
         fut.set_result(callback(result))
         return fut
@@ -195,7 +200,6 @@ class Connection(object):
     def get_server_for_key(self, key):
         return self.hosts[hash(key) % len(self.hosts)]
 
-
 class Host(object):
 
     def _info(self, msg):
@@ -228,6 +232,11 @@ class Host(object):
         self.stream = tornado.iostream.IOStream(s)
         self.stream.debug = True
 
+    def close_socket(self, resp):
+        self.stream.close()
+        self.sock.close()
+        self.sock = None
+
     def send_cmd(self, cmd, callback):
         self._ensure_connection()
         cmd = cmd + "\r\n".encode()
@@ -238,6 +247,7 @@ class Host(object):
             self._info('con future {}'.format(new_fut))
             tornado.concurrent.chain_future(new_fut, fut)
         self.stream.write(cmd, close_con)
+        fut.add_done_callback(self.close_socket)
         logging.debug('in cmd to que {} {}'.format(cmd , callback))
         return fut
 

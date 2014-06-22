@@ -30,7 +30,7 @@ class Application(tornado.web.Application):
             cookie_secret="__TODO:_GENERATE_YOUR_OWN_RANDOM_VALUE_HERE__",
             login_url="/",
         )
-        self.session_store = MemcacheStore(Client())
+        self.session_store = MemcacheStore(Client)
         tornado.web.Application.__init__(self, handlers, **settings)
 
 
@@ -41,7 +41,6 @@ class BaseHandler(tornado.web.RequestHandler):
         self.set_session()
         info = yield self.session.get_sessiondata()
         infos = self.session.insert_info(info, self)
-        logging.info('\n\n\!!! {0} !!!\n\n'.format(infos))
         self.set_secure_cookie("auth_id", self.session._sessionid)
         return self.session['user'] if self.session and 'user' in self.session else None
 

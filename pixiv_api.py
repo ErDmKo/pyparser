@@ -22,10 +22,13 @@ class Uploader(object):
             os.makedirs(self.upload_to)
 
     def upload(self, response, file_name):
-        file_name = os.path.join(self.upload_to,file_name) 
+        file_name = os.path.join(self.upload_to, file_name) 
+        dir_name = os.path.dirname(file_name)
+        if not os.path.exists(dir_name):
+            os.makedirs(dir_name)
         with open(file_name, "wb") as f:
             f.write(response)
-        return file_name
+        return '/'+file_name
 
 class Connector(object):
 
@@ -107,31 +110,45 @@ class Connector(object):
 
     def get_ranking(self):
         url = 'www.pixiv.net'
-        self.conn = client.HTTPConnection(url, timeout=60)
-        logging.info(self.headers)
-        self.conn.request('GET', '/ranking.php?mode=daily', headers = self.headers)
-        resp = self.conn.getresponse()
-        self.set_cookie(resp)
-        html = ht.fromstring(self.d.decompress(resp.read()))
-        logging.info(self.headers)
+        fut = Future()
         count = []
+        out_info = {
+                'urls': [],
+                'local_images': []
+                }
 
         def image_upload(resp):
             count.pop()
-            self.uploader.upload(resp.body, resp.request.url.split('/')[-1])
+            name = resp.request.url.split('//')[1].replace('.pixiv.net', '')
+            local_file_name = self.uploader.upload(resp.body, name)
+            out_info['local_images'].append(local_file_name)
             if not len(count):
+                fut.set_result(out_info)
                 self.unblock()
 
-        self.headers.update({
-            'Host': 'i2.pixiv.net',
-            })
+        def info_upload(resp):
+            logging.info(resp)
+            html = ht.fromstring(resp.body)
+            #self.set_cookie(resp)
+            self.headers.update({
+                'Host': 'i2.pixiv.net',
+                })
+            async_client = tornado.httpclient.AsyncHTTPClient()
+            for it in html.xpath("//*[contains(@class,'ranking-item')]")[:5]:
+                count.append('')
+                url = it.xpath('.//img')[0].get('data-src')
+                out_info['urls'].append(url)
+                request = tornado.httpclient.HTTPRequest(url, headers=self.headers)
+                async_client.fetch(request, image_upload)
+                logging.info(url)
+
         async_client = tornado.httpclient.AsyncHTTPClient()
-        for it in html.xpath("//*[contains(@class,'ranking-item')]")[:5]:
-            count.append('')
-            url = it.xpath('.//img')[0].get('data-src')
-            request = tornado.httpclient.HTTPRequest(url, headers=self.headers)
-            async_client.fetch(request, image_upload)
-            logging.info(url)
+        request = tornado.httpclient.HTTPRequest('http://{}{}'.format(
+            url, '/ranking.php?mode=daily'),
+            headers=self.headers, connect_timeout=60)
+        async_client.fetch(request, info_upload)
+
+        return fut
 
     def set_cookie(self, response):
         C = cookies.SimpleCookie()
