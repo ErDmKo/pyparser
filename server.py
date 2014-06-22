@@ -41,12 +41,13 @@ class BaseHandler(tornado.web.RequestHandler):
         self.set_session()
         info = yield self.session.get_sessiondata()
         infos = self.session.insert_info(info, self)
-        self.set_secure_cookie("auth_id", self.session._sessionid)
         return self.session['user'] if self.session and 'user' in self.session else None
 
     def set_session(self):
-        sessionid = self.get_secure_cookie('auth_id')
+        sessionid = self.get_secure_cookie('auth_id').decode('utf-8')
         self.session =Session(self.application.session_store, sessionid)
+        if not sessionid:
+            self.set_secure_cookie("auth_id", self.session._sessionid)
         return self.session
 
 class MainPage(BaseHandler):
@@ -72,7 +73,12 @@ class AuthHandler(BaseHandler):
         logging.info(self.get_secure_cookie("auth_id"))
         user = yield self.current_user
         if 'con_obj' in self.session:
-            out = {'status': 'ok'}
+            conn = pixiv_api.Connector(id=self.session['con_obj'])
+            auth_info = yield conn.login_fut()
+            if not auth_info:
+                out = {'status': 'unauth'}
+            else:
+                out = {'status': 'ok'}
         else:
             out = {'status': 'unauth'}
         self.write(out)

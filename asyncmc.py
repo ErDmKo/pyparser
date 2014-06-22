@@ -36,7 +36,6 @@ class Client(object):
         server = self._server(key)
         in_callback = functools.partial(self._get_callback_write, server=server, callback=callback)
         self._info('in get')
-        logging.info('get')
         return server.send_cmd("get {}".format(key).encode(), in_callback)
 
     def _get_callback_write(self, server, callback):
@@ -53,7 +52,6 @@ class Client(object):
     def _get_callback_read(self, result, server, callback):
         self._info("_get_callback_read `%s`" % (result,))
         if result[:3] == b"END":
-            logging.info('read_callback_release')
             self.conn_pool.release(server.conn)
             fut = Future()
             fut.set_result(callback(None))
@@ -77,13 +75,11 @@ class Client(object):
             return fut
         else:
             logging.error("Bad response from  memcache >%s<" % (result,))
-            logging.info('bad_callback_release')
             self.conn_pool.release(server.conn)
             raise Exception('Bad resp memcached')
 
     def _get_callback_value(self, result, flag, server, callback):
         result = result.replace(b"\r\nEND", b"")
-        logging.info('value_callback_release')
         self.conn_pool.release(server.conn)
 
         if flag == 0:
@@ -101,7 +97,6 @@ class Client(object):
         pass
 
     def set(self, key, value, timeout=0, callback = lambda rez: rez):
-        logging.info('set')
         assert isinstance(timeout, int)
         self._info('insert key {}'.format(key))
 
@@ -138,7 +133,6 @@ class Client(object):
     def _set_callback_read(self, result, server, callback):
         self._info('read {}'.format(result))
         self.conn_pool.release(server.conn)
-        logging.info('set_callback_release')
         fut = Future()
         fut.set_result(callback(result))
         return fut
@@ -238,17 +232,16 @@ class Host(object):
         self.sock = None
 
     def send_cmd(self, cmd, callback):
+        logging.info(cmd)
         self._ensure_connection()
         cmd = cmd + "\r\n".encode()
         fut = Future()
         def close_con(*ar, **kw):
-            logging.debug('in cmd before call {} {}'.format(cmd , callback))
             new_fut = callback(*ar, **kw)
             self._info('con future {}'.format(new_fut))
             tornado.concurrent.chain_future(new_fut, fut)
         self.stream.write(cmd, close_con)
         fut.add_done_callback(self.close_socket)
-        logging.debug('in cmd to que {} {}'.format(cmd , callback))
         return fut
 
 if __name__ == "__main__":

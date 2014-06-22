@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import zlib
+import zlib, collections
 import functools
 from uuid import uuid4
 
@@ -15,22 +15,43 @@ from tornado import gen
 import os
 from tornado.concurrent import Future
 
+
 class Uploader(object):
     upload_to = 'upload_img'
-    def __init__(self):
+    tested_urls = collections.defaultdict(str)
+    
+    def __init__(self, url_fn):
+        self.url_fn = url_fn
         if not os.path.exists(self.upload_to):
             os.makedirs(self.upload_to)
 
-    def upload(self, response, file_name):
+    def url_test(self, url):
+        file_name = self.url_fn(url)
         file_name = os.path.join(self.upload_to, file_name) 
-        dir_name = os.path.dirname(file_name)
-        if not os.path.exists(dir_name):
-            os.makedirs(dir_name)
-        with open(file_name, "wb") as f:
-            f.write(response)
+        if not os.path.exists(file_name):
+            self.tested_urls[url] = file_name
+            file_name = False
+        return file_name
+
+    def upload(self, response, file_name):
+        file_name = self.tested_urls[file_name]
+        if file_name:
+            dir_name = os.path.dirname(file_name)
+            if not os.path.exists(dir_name):
+                os.makedirs(dir_name)
+            with open(file_name, "wb") as f:
+                f.write(response)
         return '/'+file_name
 
 class Connector(object):
+
+    class LoginError(Exception):
+
+        def __init__(self, info):
+            self.info = info
+
+        def __str__(self):
+            return repr(self.info)
 
     def __init__(self,  *ar, **kw):
         self.headers = {
@@ -46,12 +67,18 @@ class Connector(object):
         self.id = kw.get('id', uuid4().hex)
         logging.info('init call')
         self.server = tornado.ioloop.IOLoop.instance()
-        self.uploader = Uploader()
+        self.uploader = Uploader(url_fn=self.url_to_name)
         self.d = zlib.decompressobj(16+zlib.MAX_WBITS)
+
+    def url_to_name(self, url):
+        return url.split('//')[1].replace('.pixiv.net', '')
+
+    def login_fut(self):
+        return self.cache.get(self.id)
 
     def get_login_fut(self, login='', password=''):
         fut = Future()
-        get_fut = self.cache.get(self.id)
+        get_fut = self.login_fut()
         def wraper(fut_rez):
             info = fut_rez.result()
             logging.info('form cache {}'.format(info))
@@ -66,6 +93,8 @@ class Connector(object):
             self.headers = rez
             self.unblock()
             return False
+        elif not login:
+            raise self.LoginError('login is none')
         url = 'www.secure.pixiv.net'
         conn = client.HTTPSConnection(url, timeout=60)
         conn.request('GET', '/login.php', headers = self.headers)
@@ -113,36 +142,51 @@ class Connector(object):
         fut = Future()
         count = []
         out_info = {
-                'urls': [],
-                'local_images': []
+                'images': [],
                 }
+
+        async_client = tornado.httpclient.AsyncHTTPClient()
 
         def image_upload(resp):
             count.pop()
-            name = resp.request.url.split('//')[1].replace('.pixiv.net', '')
-            local_file_name = self.uploader.upload(resp.body, name)
-            out_info['local_images'].append(local_file_name)
+            local_file_name = self.uploader.upload(resp.body, resp.request.url)
+            out_info['images'].append({
+                'local': local_file_name,
+                'url': resp.request.url,
+                })
+
             if not len(count):
                 fut.set_result(out_info)
                 self.unblock()
 
         def info_upload(resp):
-            logging.info(resp)
+            #logging.info(resp)
             html = ht.fromstring(resp.body)
             #self.set_cookie(resp)
             self.headers.update({
                 'Host': 'i2.pixiv.net',
                 })
-            async_client = tornado.httpclient.AsyncHTTPClient()
-            for it in html.xpath("//*[contains(@class,'ranking-item')]")[:5]:
-                count.append('')
+            for it in html.xpath(
+                    "//section[contains(@class,'ranking-item')]")[:9]:
                 url = it.xpath('.//img')[0].get('data-src')
-                out_info['urls'].append(url)
-                request = tornado.httpclient.HTTPRequest(url, headers=self.headers)
-                async_client.fetch(request, image_upload)
-                logging.info(url)
 
-        async_client = tornado.httpclient.AsyncHTTPClient()
+                #logging.info(ht.tostring(it))
+                file_name = self.uploader.url_test(url)
+                logging.info(file_name)
+                if not file_name:
+                    count.append('')
+                    request = tornado.httpclient.HTTPRequest(url, headers=self.headers)
+                    async_client.fetch(request, image_upload)
+                else:
+                    out_info['images'].append({
+                        'local': file_name,
+                        'url': url,
+                        })
+
+            if not len(count):
+                fut.set_result(out_info)
+                self.unblock()
+
         request = tornado.httpclient.HTTPRequest('http://{}{}'.format(
             url, '/ranking.php?mode=daily'),
             headers=self.headers, connect_timeout=60)

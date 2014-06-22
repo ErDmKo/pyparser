@@ -13,13 +13,13 @@ class MemcacheStore(object):
         self.client = conn()
 
     def prefixed(self, sid):
-        return self.options['key_prefix'].encode()+sid
+        return self.options['key_prefix']+sid
 
     def named(self, sid):
         return self.prefixed(sid)
 
     def generate_sid(self):
-        return uuid4().hex.encode()
+        return uuid4().hex
 
     def get_session(self, sid):
         fut = self.client.get(self.named(sid))
@@ -28,7 +28,8 @@ class MemcacheStore(object):
     @gen.coroutine
     def set_session(self, sid, session_data):
         expiry = self.options['expire']
-        yield self.client.set(self.named(sid), session_data, expiry)
+        info = yield self.client.set(self.named(sid), session_data, expiry)
+        return info
 
     def delete_session(self, sid):
         self.client.delete(self.prefixed(sid))
@@ -68,11 +69,11 @@ class Session(object):
                 'remote_ip': handler.request.remote_ip,
                 'time':'%.6f' % time.time()
                 }
+        self._sessiondata.update(access_info)
         fut = self._store.set_session(
                 self._sessionid,
-                access_info
+                self._sessiondata
                 )
-        self._sessiondata.update(access_info)
         logging.info(fut)
         return fut
  

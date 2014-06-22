@@ -1,1 +1,5 @@
-<p>This is the auth view.</p>
+<masonry item-selector=".mybrick" column-width="200">
+    <div masonry-brick class="mybrick" ng-repeat="img in images">
+        <img ng-src="{{img.local}}"/>
+    </div>
+</masonry>
