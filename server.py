@@ -44,7 +44,9 @@ class BaseHandler(tornado.web.RequestHandler):
         return self.session['user'] if self.session and 'user' in self.session else None
 
     def set_session(self):
-        sessionid = self.get_secure_cookie('auth_id').decode('utf-8')
+        sessionid = self.get_secure_cookie('auth_id')
+        if sessionid:
+            sessionid = sessionid.decode('utf-8')
         self.session =Session(self.application.session_store, sessionid)
         if not sessionid:
             self.set_secure_cookie("auth_id", self.session._sessionid)

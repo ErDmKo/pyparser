@@ -1,5 +1,7 @@
-<masonry item-selector=".mybrick" column-width="200">
+<div  class="center-block row" column-width="240" masonry-options="{isFitWidth: 'true'}" masonry item-selector=".mybrick">
     <div masonry-brick class="mybrick" ng-repeat="img in images">
-        <img ng-src="{{img.local}}"/>
+        <img class="img-responsive" ng-src="{{img.local}}"/>
+        <div ng-bind="img.name" class="absolute bg-info abs-left abs-right abs-bottom">
+        </div>
     </div>
-</masonry>
+</div>

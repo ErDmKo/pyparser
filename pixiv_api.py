@@ -65,7 +65,7 @@ class Connector(object):
         self.errors = {}
         self.cache = Client()
         self.id = kw.get('id', uuid4().hex)
-        logging.info('init call')
+
         self.server = tornado.ioloop.IOLoop.instance()
         self.uploader = Uploader(url_fn=self.url_to_name)
         self.d = zlib.decompressobj(16+zlib.MAX_WBITS)
@@ -81,17 +81,16 @@ class Connector(object):
         get_fut = self.login_fut()
         def wraper(fut_rez):
             info = fut_rez.result()
-            logging.info('form cache {}'.format(info))
             info = self.call_session(info, login, password)
             fut.set_result(info)
         get_fut.add_done_callback(wraper)
         return fut
         
     def call_session(self, rez, login='', password=''):
-        logging.info('in session {}'.format(rez))
         if rez:
             self.headers = rez
             self.unblock()
+            self.cache.set(self.id, self.headers, 1000, self.unblock)
             return False
         elif not login:
             raise self.LoginError('login is none')
@@ -123,9 +122,7 @@ class Connector(object):
             'Host': 'www.pixiv.net',
             })
         conn.close()
-        logging.info('status {}'.format(response.status))
         if response.status == 302:
-            logging.info('set_cache')
             self.cache.set(self.id, self.headers, 1000, self.unblock)
             return False
         else:
@@ -147,41 +144,45 @@ class Connector(object):
 
         async_client = tornado.httpclient.AsyncHTTPClient()
 
-        def image_upload(resp):
+        def image_upload(resp, description_info={}):
             count.pop()
             local_file_name = self.uploader.upload(resp.body, resp.request.url)
-            out_info['images'].append({
+            description_info.update({
                 'local': local_file_name,
                 'url': resp.request.url,
                 })
+            out_info['images'].append(description_info)
 
             if not len(count):
                 fut.set_result(out_info)
                 self.unblock()
 
         def info_upload(resp):
-            #logging.info(resp)
             html = ht.fromstring(resp.body)
-            #self.set_cookie(resp)
             self.headers.update({
                 'Host': 'i2.pixiv.net',
                 })
             for it in html.xpath(
                     "//section[contains(@class,'ranking-item')]")[:9]:
                 url = it.xpath('.//img')[0].get('data-src')
+                description_info = {
+                    'name': it.xpath('.//h2/a')[0].text
+                    }
 
-                #logging.info(ht.tostring(it))
                 file_name = self.uploader.url_test(url)
                 logging.info(file_name)
                 if not file_name:
                     count.append('')
                     request = tornado.httpclient.HTTPRequest(url, headers=self.headers)
-                    async_client.fetch(request, image_upload)
+                    def decor(resp):
+                        self.image_upload(resp, description_info)
+                    async_client.fetch(request, decor)
                 else:
-                    out_info['images'].append({
+                    description_info.update({
                         'local': file_name,
                         'url': url,
                         })
+                    out_info['images'].append(description_info)
 
             if not len(count):
                 fut.set_result(out_info)

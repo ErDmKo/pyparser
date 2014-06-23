@@ -30,7 +30,19 @@ body {
   color: #777;
   border-top: 1px solid #e5e5e5;
 }
+.absolute{
+position: absolute;
+}
 
+.abs-bottom {
+    bottom: 0;
+}
+.abs-right {
+    right: 0;
+    }
+.abs-left {
+    left: 0;
+    }
 .container-narrow > hr {
   margin: 30px 0;
 }
