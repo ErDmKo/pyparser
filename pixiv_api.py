@@ -175,7 +175,7 @@ class Connector(object):
                     count.append('')
                     request = tornado.httpclient.HTTPRequest(url, headers=self.headers)
                     def decor(resp):
-                        self.image_upload(resp, description_info)
+                        image_upload(resp, description_info)
                     async_client.fetch(request, decor)
                 else:
                     description_info.update({
