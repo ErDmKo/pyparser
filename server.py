@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import json, logging
 import functools
 from asyncmc import Client
