@@ -3,6 +3,7 @@ dist
 .tmp
 .sass-cache
 .env
-app/bower_components
+.vagrant
+nginx/static/bower_components
 __py*
-upload_img
+media

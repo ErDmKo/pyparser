@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import tornado.ioloop
 import tornado.iostream
 import socket
@@ -16,7 +18,7 @@ class Client(object):
     _FLAG_INTEGER = 1<<1
     _FLAG_LONG    = 1<<2
 
-    def __init__(self, servers = ["127.0.0.1:11211"], debug=0, **kwargs):
+    def __init__(self, servers = ["memcached:11211"], debug=0, **kwargs):
         self.debug = debug
         self.io_loop = tornado.ioloop.IOLoop.instance()
         self.conn_pool = ConnectionPool(servers, debug=debug, **kwargs)

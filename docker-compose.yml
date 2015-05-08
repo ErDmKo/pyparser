@@ -1,0 +1,25 @@
+memcached:
+  image: memcached
+  ports:
+    - "6379"
+
+pythonserver:
+  build: .
+  command: python server.py
+  volumes:
+    - .:/code
+  ports:
+    - "8000"
+  links:
+    - memcached
+
+nginx:
+  build: ./nginx
+  working_dir: .
+  volumes:
+    - .:/static
+    - .:/media
+  links:
+    - pythonserver
+  ports:
+    - "80:80"

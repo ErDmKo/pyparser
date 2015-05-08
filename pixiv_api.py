@@ -17,7 +17,7 @@ from tornado.concurrent import Future
 
 
 class Uploader(object):
-    upload_to = 'upload_img'
+    upload_to = 'nginx/media/upload_img'
     tested_urls = collections.defaultdict(str)
     
     def __init__(self, url_fn):
@@ -34,6 +34,7 @@ class Uploader(object):
         return file_name
 
     def upload(self, response, file_name):
+        logging.info('load')
         file_name = self.tested_urls[file_name]
         if file_name:
             dir_name = os.path.dirname(file_name)
@@ -170,7 +171,6 @@ class Connector(object):
                     }
 
                 file_name = self.uploader.url_test(url)
-                logging.info(file_name)
                 if not file_name:
                     count.append('')
                     request = tornado.httpclient.HTTPRequest(url, headers=self.headers)
