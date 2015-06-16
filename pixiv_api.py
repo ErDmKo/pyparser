@@ -64,7 +64,7 @@ class Connector(object):
             'Accept-Encoding': 'gzip,deflate,sdch',
             }
         self.errors = {}
-        self.cache = Client()
+        self.cache = Client(servers=['memcached:11211'])
         self.id = kw.get('id', uuid4().hex)
 
         self.server = tornado.ioloop.IOLoop.instance()
@@ -91,7 +91,7 @@ class Connector(object):
         if rez:
             self.headers = rez
             self.unblock()
-            self.cache.set(self.id, self.headers, 1000, self.unblock)
+            self.cache.set(self.id, self.headers, 1000)
             return False
         elif not login:
             raise self.LoginError('login is none')
@@ -124,7 +124,7 @@ class Connector(object):
             })
         conn.close()
         if response.status == 302:
-            self.cache.set(self.id, self.headers, 1000, self.unblock)
+            self.cache.set(self.id, self.headers, 1000)
             return False
         else:
             return {'login': 'pixiv login error'}

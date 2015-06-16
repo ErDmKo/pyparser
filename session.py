@@ -10,7 +10,7 @@ class MemcacheStore(object):
             'expire': 1000
             }
         self.options.update(options)
-        self.client = conn()
+        self.client = conn
 
     def prefixed(self, sid):
         return self.options['key_prefix']+sid

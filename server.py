@@ -32,7 +32,7 @@ class Application(tornado.web.Application):
             cookie_secret="__TODO:_GENERATE_YOUR_OWN_RANDOM_VALUE_HERE__",
             login_url="/",
         )
-        self.session_store = MemcacheStore(Client)
+        self.session_store = MemcacheStore(Client(servers=['memcached:11211']))
         tornado.web.Application.__init__(self, handlers, **settings)
 
 
@@ -49,7 +49,7 @@ class BaseHandler(tornado.web.RequestHandler):
         sessionid = self.get_secure_cookie('auth_id')
         if sessionid:
             sessionid = sessionid.decode('utf-8')
-        self.session =Session(self.application.session_store, sessionid)
+        self.session = Session(self.application.session_store, sessionid)
         if not sessionid:
             self.set_secure_cookie("auth_id", self.session._sessionid)
         return self.session
@@ -62,7 +62,7 @@ class MainPage(BaseHandler):
         user = yield self.current_user
         info = {
             'info_list': [],
-            }
+        }
         if 'con_obj' in self.session:
             conn = pixiv_api.Connector(id=self.session['con_obj'])
             login_err = yield conn.get_login_fut()

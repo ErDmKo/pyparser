@@ -7,7 +7,7 @@ Array.prototype.chunk = function(chunkSize) {
             return i%chunkSize ? [] : [array.slice(i,i+chunkSize)];
         })
     );
-}
+};
 
 angular
   .module('pyparserApp', [

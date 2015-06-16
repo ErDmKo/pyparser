@@ -1,3 +1,6 @@
 lxml==3.3.5
-tornado==3.2
+tornado==4.1
+toro==0.8
 WTForms==2.0.1
+pep8
+pyflakes
