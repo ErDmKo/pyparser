@@ -40,18 +40,18 @@ class BaseHandler(tornado.web.RequestHandler):
 
     @gen.coroutine
     def get_current_user(self):
-        self.set_session()
-        info = yield self.session.get_sessiondata()
-        infos = self.session.insert_info(info, self)
-        return self.session['user'] if self.session and 'user' in self.session else None
+        yield self.set_session()
+        return self.session.get('user', {})
 
+    @gen.coroutine
     def set_session(self):
         sessionid = self.get_secure_cookie('auth_id')
         if sessionid:
             sessionid = sessionid.decode('utf-8')
-        self.session = Session(self.application.session_store, sessionid)
+        self.session = yield Session.make(self.application.session_store, sessionid)
+
         if not sessionid:
-            self.set_secure_cookie("auth_id", self.session._sessionid)
+            self.set_secure_cookie("auth_id", self.session.get_session_id())
         return self.session
 
 class MainPage(BaseHandler):
@@ -59,12 +59,12 @@ class MainPage(BaseHandler):
     @gen.coroutine
     @tornado.web.authenticated
     def get(self):
-        user = yield self.current_user
+        user_info = yield self.current_user
         info = {
             'info_list': [],
         }
-        if 'con_obj' in self.session:
-            conn = pixiv_api.Connector(id=self.session['con_obj'])
+        if 'pixiv_session_id' in user_info:
+            conn = pixiv_api.Connector(id=user_info['pixiv_session_id'])
             login_err = yield conn.get_login_fut()
             if not login_err:
                 info['info_list'] = yield conn.get_ranking()
@@ -74,10 +74,9 @@ class AuthHandler(BaseHandler):
 
     @gen.coroutine
     def get(self):
-        logging.info(self.get_secure_cookie("auth_id"))
-        user = yield self.current_user
-        if 'con_obj' in self.session:
-            conn = pixiv_api.Connector(id=self.session['con_obj'])
+        user_info = yield self.current_user
+        if 'pixiv_session_id' in user_info:
+            conn = pixiv_api.Connector(id=user_info['pixiv_api'])
             auth_info = yield conn.login_fut()
             if not auth_info:
                 out = {'status': 'unauth'}
@@ -89,26 +88,21 @@ class AuthHandler(BaseHandler):
 
     @gen.coroutine
     def post(self): 
-        user = yield self.current_user
-        logging.info(user)
+        user_info = yield self.current_user
         data = json.loads(self.request.body.decode('utf8'))
         form = forms.LoginForm(forms.TornadoMultiDict(data))
         if form.validate():
-            logging.info(data)
             conn = pixiv_api.Connector()
             login_err = yield conn.get_login_fut(**form.data)
-            logging.info(login_err)
             if login_err:
-                logging.info(login_err)
                 self.set_status(401)
                 self.write(login_err)
             else:
-                self.session['con_obj'] = conn.id
+                user_info['con_obj'] = conn.id
                 self.write(form.data)
         else:
             self.set_status(401)
             self.write(form.errors)
-        logging.info('return')
 
 class LogoutHandler(BaseHandler):
     def get(self):

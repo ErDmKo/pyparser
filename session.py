@@ -1,5 +1,6 @@
 from uuid import uuid4
 import time, logging
+from collections import Mapping
 from tornado.concurrent import Future
 from tornado import gen
 
@@ -12,18 +13,16 @@ class MemcacheStore(object):
         self.options.update(options)
         self.client = conn
 
-    def prefixed(self, sid):
-        return self.options['key_prefix']+sid
-
     def named(self, sid):
-        return self.prefixed(sid)
+        return self.options['key_prefix']+sid
 
     def generate_sid(self):
         return uuid4().hex
 
+    @gen.coroutine
     def get_session(self, sid):
-        fut = self.client.get(self.named(sid))
-        return fut
+        session_dict = yield self.client.get(self.named(sid))
+        return session_dict or {}
 
     @gen.coroutine
     def set_session(self, sid, session_data):
@@ -32,32 +31,34 @@ class MemcacheStore(object):
         return info
 
     def delete_session(self, sid):
-        self.client.delete(self.prefixed(sid))
+        self.client.delete(self.named(sid), noreply=True)
 
-class Session(object):
+class Session(Mapping):
      
     def __init__(self, session_store, sessionid=None):
         self._store = session_store
-        self.conn = False
-        logging.info(sessionid)
-        self._sessionid = sessionid if sessionid else self._store.generate_sid()
+        self._sessionid = self.get_session_id(sessionid)
         self._sessiondata = {}
         self.dirty = False
 
-    def get_sessiondata(self):
-        info = self._store.get_session(self._sessionid)
-        logging.info(info)
-        return info
+    @classmethod
+    @gen.coroutine
+    def make(cls, session_store, sessionid=None):
+        session = cls(session_store, sessionid)
+        session_dict = yield session._store.get_session(session.get_session_id())
+        session.set_session_data(session_dict)
+        return session
 
-    def insert_info(self, info, handler):
-        logging.info(info)
-        if info:
-            self.conn = True
-        else:
-            info = {}
+    def get_session_id(self, sessionid=None):
+        if sessionid:
+            self._sessionid = sessionid 
+        elif not hasattr(self, '_sessionid'):
+            self._sessionid = self._store.generate_sid()
+        return self._sessionid
+
+    def set_session_data(self, info):
         self._sessiondata = info
-        self.access(handler)
-        return info
+        return self
 
     def clear(self):
         self._store.delete_session(self._sessionid)

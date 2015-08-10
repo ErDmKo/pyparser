@@ -54,7 +54,7 @@ class Connector(object):
         def __str__(self):
             return repr(self.info)
 
-    def __init__(self,  *ar, **kw):
+    def __init__(self,  *ars, **kw):
         self.headers = {
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Connection': 'keep-alive',
@@ -96,8 +96,9 @@ class Connector(object):
         elif not login:
             raise self.LoginError('login is none')
         url = 'www.secure.pixiv.net'
-        conn = client.HTTPSConnection(url, timeout=60)
+        conn = client.HTTPSConnection(url, timeout=6)
         conn.request('GET', '/login.php', headers = self.headers)
+        logging.info('get resp')
         response = conn.getresponse()
         self.set_cookie(response)
         self.headers.update({

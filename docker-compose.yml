@@ -15,7 +15,9 @@ pythonserver:
 
 nginx:
   build: ./nginx
-  working_dir: .
+  volumes:
+    - ./nginx/static:/app/static/
+    - ./nginx/media:/app/media/
   links:
     - pythonserver
   ports:
